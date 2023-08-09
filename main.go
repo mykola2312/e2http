@@ -44,7 +44,7 @@ func getImage(name string) (E2Image, bool) {
 }
 
 func convertPixel(r uint32, g uint32, b uint32) (uint32, uint32, uint32) {
-	return (r / 0xFFFF) * 255, (g / 0xFFFF) * 255, (b / 0xFFFF) * 255
+	return uint32(float32(r) / 65535.0 * 255.0), uint32(float32(g) / 65535.0 * 255.0), uint32(float32(b) / 65535.0 * 255.0)
 }
 
 func handleImage(w http.ResponseWriter, r *http.Request) {
