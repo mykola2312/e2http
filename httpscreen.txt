@@ -1,0 +1,79 @@
+@name HttpScreen
+@inputs DS:wirelink
+@persist ResX ResY X Y Stage
+
+DS_RESET = 1048574
+DS_MODE = 1048569
+DS_CLK = 1048575
+DS_RES_X = 1048572
+DS_RES_Y = 1048573
+
+function wirelink:dsClk() {
+    This[DS_CLK] = 1
+}
+
+function wirelink:dsInit(Mode, ResX, ResY) {
+    This[DS_RESET] = 0
+    This[DS_MODE] = Mode
+    This:dsClk()
+    This[DS_RES_X] = ResX
+    This[DS_RES_Y] = ResY
+}
+
+function wirelink:dsPixel(X, Y, Pixel:number) {
+    This[X + Y*ResY] = Pixel
+}
+
+SERVER = "<HTTP URL>"
+IMAGE = "<IMAGE NAME>"
+
+STAGE_INFO = 0
+STAGE_REQUEST = 1
+STAGE_WAIT = 2
+STAGE_RENDER = 3
+STAGE_STOP = 4
+
+if (first()) {
+    Stage = STAGE_INFO
+    httpRequest(SERVER + "/image?name=" + IMAGE + "&action=resolution")
+    runOnHTTP(1)
+}
+
+if (Stage == STAGE_INFO && httpClk() == 1) {
+    Res = httpData():explode(",")
+    ResX = Res[1, string]:toNumber()
+    ResY = Res[2, string]:toNumber()
+    DS:dsInit(2, ResX, ResY)
+    
+    Stage = STAGE_REQUEST
+}
+
+interval(100)
+RENDER_STRIDE = 256
+
+if (Stage == STAGE_REQUEST && httpCanRequest()) {
+    httpRequest(SERVER + "/image?name=" + IMAGE + "&action=pixels&x=" + X + "&y=" + Y + "&count=" + RENDER_STRIDE + "&mode=2")
+    Stage = STAGE_WAIT
+    runOnHTTP(1)
+}
+if (Stage == STAGE_WAIT && httpClk() == 1) {
+    Stage = STAGE_RENDER
+    
+    Pixels = httpData():explode(",")
+    for (I=1,RENDER_STRIDE) {
+        DS:dsPixel(X+I, Y, Pixels[I, string]:toNumber())
+    }
+    
+    X = X + RENDER_STRIDE
+    if (X >= ResX) {
+        X = 0
+        Y++
+    }
+    if (Y >= ResY) {
+        Stage = STAGE_STOP
+    } else {
+        Stage = STAGE_REQUEST
+    }
+} else {
+    #print(httpData())
+}
